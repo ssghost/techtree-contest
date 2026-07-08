@@ -1,3 +1,6 @@
 {
-    "wake.compiler.solc.remappings": []
+    "wake.compiler.solc.remappings": [
+        "hardhat/=challenges/dead-mans-switch/packages/hardhat/node_modules/hardhat/",
+        "@openzeppelin/=challenges/dead-mans-switch/packages/hardhat/node_modules/@openzeppelin/"
+    ]
 }
