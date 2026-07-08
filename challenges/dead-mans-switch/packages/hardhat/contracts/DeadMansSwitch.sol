@@ -20,8 +20,8 @@ contract DeadMansSwitch{
     uint256 public totalCounter = 0;
     mapping(address => uint) public userGreetingCounter;
     mapping(address => uint) public balances;
-    mapping(address => uint256) public LastCheckIn;
-    mapping(address => uint256) public Interval;
+    mapping(address => uint256) public userCheckIn;
+    mapping(address => uint256) public userInterval;
     mapping(address => mapping(address => bool)) public isBeneficiary;
 
     // Events: a way to emit log statements from smart contract that can be listened to by external parties
@@ -83,7 +83,7 @@ contract DeadMansSwitch{
             require(success, "Failed to send Ether");
         } else {
             require(isBeneficiary[account][msg.sender], "Not a beneficiary");
-            require(block.timestamp - LastCheckIn[account] > Interval[account], "Check-in interval not exceeded");
+            require(block.timestamp - userCheckIn[account] > userInterval[account], "Check-in interval not exceeded");
             address beneficiary = msg.sender;
             balances[account] -= amount;
             (bool success, ) = msg.sender.call{value: amount}("");
@@ -109,15 +109,16 @@ contract DeadMansSwitch{
 
     function checkIn() external {
         require(balances[msg.sender] > 0, "Only users can check in");
-        LastCheckIn[msg.sender] = block.timestamp;
+        userCheckIn[msg.sender] = block.timestamp;
     }
 
     function setCheckInInterval(uint256 _interval) external {
         require(balances[msg.sender] > 0, "Only users can check in");
-        Interval[msg.sender] = _interval;
+        userInterval[msg.sender] = _interval;
     }
 
     function addBeneficiary(address _beneficiary) external {
+        require(balances[msg.sender] > 0, "Only users can check in");
         require(_beneficiary != msg.sender);
         isBeneficiary[msg.sender][_beneficiary] = true;
         address user = msg.sender;
@@ -137,10 +138,10 @@ contract DeadMansSwitch{
     }
 
     function lastCheckIn(address account) external view returns (uint256) {
-        return LastCheckIn[account];
+        return userCheckIn[account];
     }
 
     function checkInInterval(address account) external view returns (uint256) {
-        return Interval[account];
+        return userInterval[account];
     }
 }
