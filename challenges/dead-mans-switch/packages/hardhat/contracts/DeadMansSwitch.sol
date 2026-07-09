@@ -13,8 +13,8 @@ contract DeadMansSwitch{
     event Withdrawal(address beneficiary, uint amount);
     event BeneficiaryAdded(address user, address beneficiary);
     event BeneficiaryRemoved(address user, address beneficiary);
-    
-    string public greeting = "Building Unstoppable Apps!!!";
+
+    string public constant greeting = "Building Unstoppable Apps!!!";
 
     error InvalidAmount();
     error InsufficientBalance();
