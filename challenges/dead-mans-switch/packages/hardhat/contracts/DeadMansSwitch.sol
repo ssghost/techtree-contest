@@ -1,136 +1,79 @@
 //SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-// Useful for debugging. Remove when deploying to a live network.
 import "hardhat/console.sol";
 
-// Use openzeppelin to inherit battle-tested implementations (ERC20, ERC721, etc)
-// import "@openzeppelin/contracts/access/Ownable.sol";
-
-/**
- * A smart contract that allows changing a state variable of the contract and tracking the changes
- * It also allows the owner to withdraw the Ether in the contract
- * @author BuidlGuidl
- */
 contract DeadMansSwitch{
-    // State Variables
-    address public immutable owner;
-    string public greeting = "Building Unstoppable Apps!!!";
-    bool public premium = false;
-    uint256 public totalCounter = 0;
-    mapping(address => uint) public userGreetingCounter;
     mapping(address => uint) public balances;
     mapping(address => uint256) public userCheckIn;
     mapping(address => uint256) public userInterval;
     mapping(address => mapping(address => bool)) public isBeneficiary;
 
-    // Events: a way to emit log statements from smart contract that can be listened to by external parties
-    event GreetingChange(address indexed greetingSetter, string newGreeting, bool premium, uint256 value);
     event Deposit(address depositor, uint amount);
     event Withdrawal(address beneficiary, uint amount);
     event BeneficiaryAdded(address user, address beneficiary);
     event BeneficiaryRemoved(address user, address beneficiary);
+    
+    string public greeting = "Building Unstoppable Apps!!!";
 
-    // Constructor: Called once on contract deployment
-    // Check packages/hardhat/deploy/00_deploy_your_contract.ts
-    constructor(address _owner) {
-        owner = _owner;
-    }
+    error InvalidAmount();
+    error InsufficientBalance();
+    error TransferFailed();
+    error NotBeneficiary();
+    error IntervalNotExceeded();
+    error OnlyUsers();
+    error InvalidBeneficiary();
 
-    // Modifier: used to define a set of rules that must be met before or after a function is executed
-    // Check the withdraw() function
-    modifier isOwner() {
-        // msg.sender: predefined variable that represents address of the account that called the current function
-        require(msg.sender == owner, "Not the Owner");
-        _;
-    }
-
-    /**
-     * Function that allows anyone to change the state variable "greeting" of the contract and increase the counters
-     *
-     * @param _newGreeting (string memory) - new greeting to save on the contract
-     */
-    function setGreeting(string memory _newGreeting) public payable {
-        // Print data to the hardhat chain console. Remove when deploying to a live network.
-        console.log("Setting new greeting '%s' from %s", _newGreeting, msg.sender);
-
-        // Change state variables
-        greeting = _newGreeting;
-        totalCounter += 1;
-        userGreetingCounter[msg.sender] += 1;
-
-        // msg.value: built-in global variable that represents the amount of ether sent with the transaction
-        if (msg.value > 0) {
-            premium = true;
-        } else {
-            premium = false;
-        }
-
-        // emit: keyword used to trigger an event
-        emit GreetingChange(msg.sender, _newGreeting, msg.value > 0, msg.value);
-    }
-
-    /**
-     * Function that allows the owner to withdraw all the Ether in the contract
-     * The function can only be called by the owner of the contract as defined by the isOwner modifier
-     */
-    function withdraw(address account, uint256 amount) external {
-        require(balances[account] >= amount, "Insufficient balance");
+    function withdraw(address account, uint256 amount) external payable{
+        if (amount <= 0) revert InvalidAmount();
+        if (balances[account] < amount) revert InsufficientBalance();
 
         if (msg.sender == account) {
             balances[account] -= amount;
             (bool success, ) = msg.sender.call{value: amount}("");
-            require(success, "Failed to send Ether");
+            if (!success) revert TransferFailed();
         } else {
-            require(isBeneficiary[account][msg.sender], "Not a beneficiary");
-            require(block.timestamp - userCheckIn[account] > userInterval[account], "Check-in interval not exceeded");
-            address beneficiary = msg.sender;
+            if (!isBeneficiary[account][msg.sender]) revert NotBeneficiary();
+            if (block.timestamp - userCheckIn[account] <= userInterval[account]) revert IntervalNotExceeded();
             balances[account] -= amount;
             (bool success, ) = msg.sender.call{value: amount}("");
-            require(success, "Failed to send Ether");
-            emit Withdrawal(beneficiary, amount); 
+            if (!success) revert TransferFailed();
+            emit Withdrawal(msg.sender, amount);
         }
-    }
+    }   
 
-    /**
-     * Function that allows the contract to receive ETH
-     */
     receive() external payable {
         balances[msg.sender] += msg.value;
     }
 
     function deposit() external payable {
-        require(msg.value > 0, "Amount must be > 0");
+        if (msg.value <= 0) revert InvalidAmount();
         balances[msg.sender] += msg.value;
-        address depositor = msg.sender;
         uint amount = msg.value;
-        emit Deposit(depositor, amount);
+        emit Deposit(msg.sender, amount);
     }
 
     function checkIn() external {
-        require(balances[msg.sender] > 0, "Only users can check in");
+        if (balances[msg.sender] <= 0) revert OnlyUsers();
         userCheckIn[msg.sender] = block.timestamp;
     }
 
     function setCheckInInterval(uint256 _interval) external {
-        require(balances[msg.sender] > 0, "Only users can check in");
+        if (balances[msg.sender] <= 0) revert OnlyUsers();
         userInterval[msg.sender] = _interval;
     }
 
     function addBeneficiary(address _beneficiary) external {
-        require(balances[msg.sender] > 0, "Only users can check in");
-        require(_beneficiary != msg.sender);
+        if (balances[msg.sender] <= 0) revert OnlyUsers();
+        if (_beneficiary == msg.sender) revert InvalidBeneficiary();
         isBeneficiary[msg.sender][_beneficiary] = true;
-        address user = msg.sender;
-
-        emit BeneficiaryAdded(user, _beneficiary);
+        emit BeneficiaryAdded(msg.sender, _beneficiary);
     }
 
     function removeBeneficiary(address _beneficiary) external {
-        require(isBeneficiary[msg.sender][_beneficiary] == true);
+        if (isBeneficiary[msg.sender][_beneficiary] != true) revert NotBeneficiary();
         isBeneficiary[msg.sender][_beneficiary] = false;
-        address user = msg.sender;
-        emit BeneficiaryRemoved(user, _beneficiary);
+        emit BeneficiaryRemoved(msg.sender, _beneficiary);
     }
 
     function balanceOf(address account) external view returns (uint256) {
