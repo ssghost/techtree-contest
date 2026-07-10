@@ -70,20 +70,6 @@ describe("DeadMansSwitch", function () {
       const latestTime = await time.latest();
       expect(await deadMansSwitch.lastCheckIn(user.address)).to.equal(latestTime);
     });
-
-    it("Should fail to set interval if user has no balance", async function () {
-      await expect(deadMansSwitch.connect(otherAccount).setCheckInInterval(interval)).to.be.revertedWithCustomError(
-        deadMansSwitch,
-        "OnlyUsers",
-      );
-    });
-
-    it("Should fail to check in if user has no balance", async function () {
-      await expect(deadMansSwitch.connect(otherAccount).checkIn()).to.be.revertedWithCustomError(
-        deadMansSwitch,
-        "OnlyUsers",
-      );
-    });
   });
 
   describe("Beneficiary Management", function () {
@@ -104,10 +90,6 @@ describe("DeadMansSwitch", function () {
         deadMansSwitch,
         "InvalidBeneficiary",
       );
-    });
-
-    it("Should fail to add beneficiary if user has no balance", async function () {
-      await expect(deadMansSwitch.connect(otherAccount).addBeneficiary(beneficiary.address)).to.be.revertedWithCustomError(deadMansSwitch,"OnlyUsers");
     });
 
     it("Should allow removing a beneficiary", async function () {

@@ -353,7 +353,7 @@ const deployedContracts = {
   },
   84532: {
     DeadMansSwitch: {
-      address: "0x37cf81E5B5DfB75d79D8Ca93A108e4aD74E6BcAE",
+      address: "0xbaF4c3459d872c32e00F01bb126f978cBD68CedD",
       abi: [
         {
           inputs: [],
@@ -378,11 +378,6 @@ const deployedContracts = {
         {
           inputs: [],
           name: "NotBeneficiary",
-          type: "error",
-        },
-        {
-          inputs: [],
-          name: "OnlyUsers",
           type: "error",
         },
         {
@@ -465,6 +460,10 @@ const deployedContracts = {
           ],
           name: "Withdrawal",
           type: "event",
+        },
+        {
+          stateMutability: "payable",
+          type: "fallback",
         },
         {
           inputs: [
@@ -685,7 +684,7 @@ const deployedContracts = {
           ],
           name: "withdraw",
           outputs: [],
-          stateMutability: "payable",
+          stateMutability: "nonpayable",
           type: "function",
         },
         {
@@ -694,7 +693,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 43945431,
+      deployedOnBlock: 43947067,
     },
   },
 } as const;

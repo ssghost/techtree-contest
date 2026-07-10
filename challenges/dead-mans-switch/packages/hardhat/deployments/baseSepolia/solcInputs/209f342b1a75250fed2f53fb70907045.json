@@ -1,0 +1,36 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/DeadMansSwitch.sol": {
+      "content": "//SPDX-License-Identifier: MIT\npragma solidity >=0.8.0 <0.9.0;\n\ncontract DeadMansSwitch {\n    mapping(address => uint256) public balances;\n    mapping(address => uint256) public userCheckIn;\n    mapping(address => uint256) public userInterval;\n    mapping(address => mapping(address => bool)) public isBeneficiary;\n\n    event Deposit(address depositor, uint256 amount);\n    event Withdrawal(address beneficiary, uint256 amount);\n    event BeneficiaryAdded(address user, address beneficiary);\n    event BeneficiaryRemoved(address user, address beneficiary);\n\n    string public constant greeting = \"Building Unstoppable Apps!!!\";\n\n    error InvalidAmount();\n    error InsufficientBalance();\n    error TransferFailed();\n    error NotBeneficiary();\n    error IntervalNotExceeded();\n    error InvalidBeneficiary();\n\n    function withdraw(address account, uint256 amount) external {\n        if (amount == 0) revert InvalidAmount();\n        if (balances[account] < amount) revert InsufficientBalance();\n\n        if (msg.sender == account) {\n            balances[account] -= amount;\n            userCheckIn[account] = block.timestamp;\n            (bool success, ) = msg.sender.call{value: amount}(\"\");\n            if (!success) revert TransferFailed();\n        } else {\n            if (!isBeneficiary[account][msg.sender]) revert NotBeneficiary();\n            if (block.timestamp - userCheckIn[account] <= userInterval[account])\n                revert IntervalNotExceeded();\n\n            balances[account] -= amount;\n            (bool success, ) = msg.sender.call{value: amount}(\"\");\n            if (!success) revert TransferFailed();\n\n            emit Withdrawal(msg.sender, amount);\n        }\n    }\n\n    receive() external payable {\n        balances[msg.sender] += msg.value;\n        userCheckIn[msg.sender] = block.timestamp;\n    }\n\n    fallback() external payable {\n        balances[msg.sender] += msg.value;\n        userCheckIn[msg.sender] = block.timestamp;\n    }\n\n    function deposit() external payable {\n        if (msg.value == 0) revert InvalidAmount();\n        balances[msg.sender] += msg.value;\n        userCheckIn[msg.sender] = block.timestamp;\n        emit Deposit(msg.sender, msg.value);\n    }\n\n    function checkIn() external {\n        userCheckIn[msg.sender] = block.timestamp;\n    }\n\n    function setCheckInInterval(uint256 _interval) external {\n        if (_interval == 0) revert InvalidAmount();\n        userInterval[msg.sender] = _interval;\n        userCheckIn[msg.sender] = block.timestamp;\n    }\n\n    function addBeneficiary(address _beneficiary) external {\n        if (_beneficiary == address(0)) revert InvalidBeneficiary();\n        if (_beneficiary == msg.sender) revert InvalidBeneficiary();\n        if (isBeneficiary[msg.sender][_beneficiary]) revert InvalidBeneficiary();\n\n        isBeneficiary[msg.sender][_beneficiary] = true;\n        userCheckIn[msg.sender] = block.timestamp;\n\n        emit BeneficiaryAdded(msg.sender, _beneficiary);\n    }\n\n    function removeBeneficiary(address _beneficiary) external {\n        if (!isBeneficiary[msg.sender][_beneficiary])\n            revert NotBeneficiary();\n\n        isBeneficiary[msg.sender][_beneficiary] = false;\n        userCheckIn[msg.sender] = block.timestamp;\n\n        emit BeneficiaryRemoved(msg.sender, _beneficiary);\n    }\n\n    function balanceOf(address account) external view returns (uint256) {\n        return balances[account];\n    }\n\n    function lastCheckIn(address account) external view returns (uint256) {\n        return userCheckIn[account];\n    }\n\n    function checkInInterval(address account)\n        external\n        view\n        returns (uint256)\n    {\n        return userInterval[account];\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 200
+    },
+    "evmVersion": "paris",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}

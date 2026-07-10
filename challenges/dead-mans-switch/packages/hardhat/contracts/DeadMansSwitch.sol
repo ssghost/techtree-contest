@@ -1,16 +1,14 @@
 //SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-//import "hardhat/console.sol";
-
-contract DeadMansSwitch{
-    mapping(address => uint) public balances;
+contract DeadMansSwitch {
+    mapping(address => uint256) public balances;
     mapping(address => uint256) public userCheckIn;
     mapping(address => uint256) public userInterval;
     mapping(address => mapping(address => bool)) public isBeneficiary;
 
-    event Deposit(address depositor, uint amount);
-    event Withdrawal(address beneficiary, uint amount);
+    event Deposit(address depositor, uint256 amount);
+    event Withdrawal(address beneficiary, uint256 amount);
     event BeneficiaryAdded(address user, address beneficiary);
     event BeneficiaryRemoved(address user, address beneficiary);
 
@@ -21,58 +19,75 @@ contract DeadMansSwitch{
     error TransferFailed();
     error NotBeneficiary();
     error IntervalNotExceeded();
-    error OnlyUsers();
     error InvalidBeneficiary();
 
-    function withdraw(address account, uint256 amount) external payable{
-        if (amount <= 0) revert InvalidAmount();
+    function withdraw(address account, uint256 amount) external {
+        if (amount == 0) revert InvalidAmount();
         if (balances[account] < amount) revert InsufficientBalance();
 
         if (msg.sender == account) {
             balances[account] -= amount;
+            userCheckIn[account] = block.timestamp;
             (bool success, ) = msg.sender.call{value: amount}("");
             if (!success) revert TransferFailed();
         } else {
             if (!isBeneficiary[account][msg.sender]) revert NotBeneficiary();
-            if (block.timestamp - userCheckIn[account] <= userInterval[account]) revert IntervalNotExceeded();
+            if (block.timestamp - userCheckIn[account] <= userInterval[account])
+                revert IntervalNotExceeded();
+
             balances[account] -= amount;
             (bool success, ) = msg.sender.call{value: amount}("");
             if (!success) revert TransferFailed();
+
             emit Withdrawal(msg.sender, amount);
         }
-    }   
+    }
 
     receive() external payable {
         balances[msg.sender] += msg.value;
+        userCheckIn[msg.sender] = block.timestamp;
+    }
+
+    fallback() external payable {
+        balances[msg.sender] += msg.value;
+        userCheckIn[msg.sender] = block.timestamp;
     }
 
     function deposit() external payable {
-        if (msg.value <= 0) revert InvalidAmount();
+        if (msg.value == 0) revert InvalidAmount();
         balances[msg.sender] += msg.value;
-        uint amount = msg.value;
-        emit Deposit(msg.sender, amount);
+        userCheckIn[msg.sender] = block.timestamp;
+        emit Deposit(msg.sender, msg.value);
     }
 
     function checkIn() external {
-        if (balances[msg.sender] <= 0) revert OnlyUsers();
         userCheckIn[msg.sender] = block.timestamp;
     }
 
     function setCheckInInterval(uint256 _interval) external {
-        if (balances[msg.sender] <= 0) revert OnlyUsers();
+        if (_interval == 0) revert InvalidAmount();
         userInterval[msg.sender] = _interval;
+        userCheckIn[msg.sender] = block.timestamp;
     }
 
     function addBeneficiary(address _beneficiary) external {
-        if (balances[msg.sender] <= 0) revert OnlyUsers();
+        if (_beneficiary == address(0)) revert InvalidBeneficiary();
         if (_beneficiary == msg.sender) revert InvalidBeneficiary();
+        if (isBeneficiary[msg.sender][_beneficiary]) revert InvalidBeneficiary();
+
         isBeneficiary[msg.sender][_beneficiary] = true;
+        userCheckIn[msg.sender] = block.timestamp;
+
         emit BeneficiaryAdded(msg.sender, _beneficiary);
     }
 
     function removeBeneficiary(address _beneficiary) external {
-        if (isBeneficiary[msg.sender][_beneficiary] != true) revert NotBeneficiary();
+        if (!isBeneficiary[msg.sender][_beneficiary])
+            revert NotBeneficiary();
+
         isBeneficiary[msg.sender][_beneficiary] = false;
+        userCheckIn[msg.sender] = block.timestamp;
+
         emit BeneficiaryRemoved(msg.sender, _beneficiary);
     }
 
@@ -84,7 +99,11 @@ contract DeadMansSwitch{
         return userCheckIn[account];
     }
 
-    function checkInInterval(address account) external view returns (uint256) {
+    function checkInInterval(address account)
+        external
+        view
+        returns (uint256)
+    {
         return userInterval[account];
     }
 }
