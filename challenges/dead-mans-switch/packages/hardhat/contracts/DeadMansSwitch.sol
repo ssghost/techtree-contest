@@ -1,41 +1,67 @@
 //SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity ^0.8.20;
 
 contract DeadMansSwitch {
-    mapping(address => uint256) public balances;
-    mapping(address => uint256) public userCheckIn;
-    mapping(address => uint256) public userInterval;
+    struct User {
+        uint96 balance;
+        uint32 lastCheckIn;
+        uint32 interval;
+    }
+
+    mapping(address => User) internal users;
     mapping(address => mapping(address => bool)) public isBeneficiary;
 
-    event Deposit(address depositor, uint256 amount);
-    event Withdrawal(address beneficiary, uint256 amount);
+    event Deposit(address depositor, uint amount);
+    event Withdrawal(address beneficiary, uint amount);
     event BeneficiaryAdded(address user, address beneficiary);
     event BeneficiaryRemoved(address user, address beneficiary);
-
-    string public constant greeting = "Building Unstoppable Apps!!!";
+    event CheckIn(address account, uint timestamp);
 
     error InvalidAmount();
     error InsufficientBalance();
-    error TransferFailed();
     error NotBeneficiary();
     error IntervalNotExceeded();
     error InvalidBeneficiary();
+    error TransferFailed();
 
-    function withdraw(address account, uint256 amount) external {
+    /* ========== INTERNAL CHECKIN ========== */
+
+    function _checkIn(User storage u, address account, uint32 ts) internal {
+        u.lastCheckIn = ts;
+        emit CheckIn(account, ts);
+    }
+
+    /* ========== CORE LOGIC ========== */
+
+    function withdraw(address account, uint amount) external {
         if (amount == 0) revert InvalidAmount();
-        if (balances[account] < amount) revert InsufficientBalance();
+
+        User storage u = users[account];
+        uint96 bal = u.balance;
+
+        if (bal < amount) revert InsufficientBalance();
 
         if (msg.sender == account) {
-            balances[account] -= amount;
-            userCheckIn[account] = block.timestamp;
+            unchecked {
+                u.balance = bal - uint96(amount);
+            }
+
+            uint32 ts = uint32(block.timestamp);
+            _checkIn(u, account, ts);
+
             (bool success, ) = msg.sender.call{value: amount}("");
             if (!success) revert TransferFailed();
         } else {
-            if (!isBeneficiary[account][msg.sender]) revert NotBeneficiary();
-            if (block.timestamp - userCheckIn[account] <= userInterval[account])
+            if (!isBeneficiary[account][msg.sender])
+                revert NotBeneficiary();
+
+            if (block.timestamp - u.lastCheckIn <= u.interval)
                 revert IntervalNotExceeded();
 
-            balances[account] -= amount;
+            unchecked {
+                u.balance = bal - uint96(amount);
+            }
+
             (bool success, ) = msg.sender.call{value: amount}("");
             if (!success) revert TransferFailed();
 
@@ -43,67 +69,106 @@ contract DeadMansSwitch {
         }
     }
 
+    /* ========== PAYABLE ========== */
+
     receive() external payable {
-        balances[msg.sender] += msg.value;
-        userCheckIn[msg.sender] = block.timestamp;
+        User storage u = users[msg.sender];
+        unchecked {
+            u.balance += uint96(msg.value);
+        }
+
+        uint32 ts = uint32(block.timestamp);
+        _checkIn(u, msg.sender, ts);
+
+        emit Deposit(msg.sender, msg.value);
     }
 
     fallback() external payable {
-        balances[msg.sender] += msg.value;
-        userCheckIn[msg.sender] = block.timestamp;
+        User storage u = users[msg.sender];
+        unchecked {
+            u.balance += uint96(msg.value);
+        }
+
+        uint32 ts = uint32(block.timestamp);
+        _checkIn(u, msg.sender, ts);
+
+        emit Deposit(msg.sender, msg.value);
     }
 
     function deposit() external payable {
         if (msg.value == 0) revert InvalidAmount();
-        balances[msg.sender] += msg.value;
-        userCheckIn[msg.sender] = block.timestamp;
+
+        User storage u = users[msg.sender];
+        unchecked {
+            u.balance += uint96(msg.value);
+        }
+
+        uint32 ts = uint32(block.timestamp);
+        _checkIn(u, msg.sender, ts);
+
         emit Deposit(msg.sender, msg.value);
     }
 
     function checkIn() external {
-        userCheckIn[msg.sender] = block.timestamp;
+        User storage u = users[msg.sender];
+        uint32 ts = uint32(block.timestamp);
+        _checkIn(u, msg.sender, ts);
     }
 
-    function setCheckInInterval(uint256 _interval) external {
-        if (_interval == 0) revert InvalidAmount();
-        userInterval[msg.sender] = _interval;
-        userCheckIn[msg.sender] = block.timestamp;
+    function setCheckInInterval(uint interval) external {
+        if (interval == 0) revert InvalidAmount();
+
+        User storage u = users[msg.sender];
+        u.interval = uint32(interval);
+
+        uint32 ts = uint32(block.timestamp);
+        _checkIn(u, msg.sender, ts);
     }
 
-    function addBeneficiary(address _beneficiary) external {
-        if (_beneficiary == address(0)) revert InvalidBeneficiary();
-        if (_beneficiary == msg.sender) revert InvalidBeneficiary();
-        if (isBeneficiary[msg.sender][_beneficiary]) revert InvalidBeneficiary();
+    function addBeneficiary(address beneficiary) external {
+        if (beneficiary == address(0) || beneficiary == msg.sender)
+            revert InvalidBeneficiary();
 
-        isBeneficiary[msg.sender][_beneficiary] = true;
-        userCheckIn[msg.sender] = block.timestamp;
+        if (isBeneficiary[msg.sender][beneficiary])
+            revert InvalidBeneficiary();
 
-        emit BeneficiaryAdded(msg.sender, _beneficiary);
+        isBeneficiary[msg.sender][beneficiary] = true;
+
+        emit BeneficiaryAdded(msg.sender, beneficiary);
+
+        User storage u = users[msg.sender];
+        uint32 ts = uint32(block.timestamp);
+        _checkIn(u, msg.sender, ts);
     }
 
-    function removeBeneficiary(address _beneficiary) external {
-        if (!isBeneficiary[msg.sender][_beneficiary])
+    function removeBeneficiary(address beneficiary) external {
+        if (!isBeneficiary[msg.sender][beneficiary])
             revert NotBeneficiary();
 
-        isBeneficiary[msg.sender][_beneficiary] = false;
-        userCheckIn[msg.sender] = block.timestamp;
+        delete isBeneficiary[msg.sender][beneficiary];
 
-        emit BeneficiaryRemoved(msg.sender, _beneficiary);
+        emit BeneficiaryRemoved(msg.sender, beneficiary);
+
+        User storage u = users[msg.sender];
+        uint32 ts = uint32(block.timestamp);
+        _checkIn(u, msg.sender, ts);
     }
 
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
+    /* ========== VIEW FUNCTIONS ========== */
+
+    function balanceOf(address account) external view returns (uint) {
+        return users[account].balance;
     }
 
-    function lastCheckIn(address account) external view returns (uint256) {
-        return userCheckIn[account];
+    function lastCheckIn(address account) external view returns (uint) {
+        return users[account].lastCheckIn;
     }
 
     function checkInInterval(address account)
         external
         view
-        returns (uint256)
+        returns (uint)
     {
-        return userInterval[account];
+        return users[account].interval;
     }
 }

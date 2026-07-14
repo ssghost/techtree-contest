@@ -353,7 +353,7 @@ const deployedContracts = {
   },
   84532: {
     DeadMansSwitch: {
-      address: "0xbaF4c3459d872c32e00F01bb126f978cBD68CedD",
+      address: "0x539fe87bCDD6DD86D047210378F3b8380a0440B2",
       abi: [
         {
           inputs: [],
@@ -429,6 +429,25 @@ const deployedContracts = {
             {
               indexed: false,
               internalType: "address",
+              name: "account",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "timestamp",
+              type: "uint256",
+            },
+          ],
+          name: "CheckIn",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: false,
+              internalType: "address",
               name: "depositor",
               type: "address",
             },
@@ -469,7 +488,7 @@ const deployedContracts = {
           inputs: [
             {
               internalType: "address",
-              name: "_beneficiary",
+              name: "beneficiary",
               type: "address",
             },
           ],
@@ -487,25 +506,6 @@ const deployedContracts = {
             },
           ],
           name: "balanceOf",
-          outputs: [
-            {
-              internalType: "uint256",
-              name: "",
-              type: "uint256",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-          ],
-          name: "balances",
           outputs: [
             {
               internalType: "uint256",
@@ -547,19 +547,6 @@ const deployedContracts = {
           name: "deposit",
           outputs: [],
           stateMutability: "payable",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "greeting",
-          outputs: [
-            {
-              internalType: "string",
-              name: "",
-              type: "string",
-            },
-          ],
-          stateMutability: "view",
           type: "function",
         },
         {
@@ -609,7 +596,7 @@ const deployedContracts = {
           inputs: [
             {
               internalType: "address",
-              name: "_beneficiary",
+              name: "beneficiary",
               type: "address",
             },
           ],
@@ -622,51 +609,13 @@ const deployedContracts = {
           inputs: [
             {
               internalType: "uint256",
-              name: "_interval",
+              name: "interval",
               type: "uint256",
             },
           ],
           name: "setCheckInInterval",
           outputs: [],
           stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-          ],
-          name: "userCheckIn",
-          outputs: [
-            {
-              internalType: "uint256",
-              name: "",
-              type: "uint256",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-          ],
-          name: "userInterval",
-          outputs: [
-            {
-              internalType: "uint256",
-              name: "",
-              type: "uint256",
-            },
-          ],
-          stateMutability: "view",
           type: "function",
         },
         {
@@ -693,7 +642,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 43947067,
+      deployedOnBlock: 44144385,
     },
   },
 } as const;

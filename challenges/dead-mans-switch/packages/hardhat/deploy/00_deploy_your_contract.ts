@@ -33,8 +33,8 @@ const deployDeadMansSwitch: DeployFunction = async function (hre: HardhatRuntime
   });
 
   // Get the deployed contract to interact with it after deploying.
-  const DeadMansSwitch = await hre.ethers.getContract<Contract>("DeadMansSwitch", deployer);
-  console.log("👋 Initial greeting:", await DeadMansSwitch.greeting());
+  await hre.ethers.getContract<Contract>("DeadMansSwitch", deployer);
+  //console.log("👋 Initial greeting:", await DeadMansSwitch.greeting());
 };
 
 export default deployDeadMansSwitch;

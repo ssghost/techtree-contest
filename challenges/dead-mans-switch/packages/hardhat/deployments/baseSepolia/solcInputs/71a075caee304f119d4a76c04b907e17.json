@@ -1,0 +1,36 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/DeadMansSwitch.sol": {
+      "content": "//SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n\ncontract DeadMansSwitch {\n    struct User {\n        uint96 balance;\n        uint32 lastCheckIn;\n        uint32 interval;\n    }\n\n    mapping(address => User) internal users;\n    mapping(address => mapping(address => bool)) public isBeneficiary;\n\n    event Deposit(address depositor, uint amount);\n    event Withdrawal(address beneficiary, uint amount);\n    event BeneficiaryAdded(address user, address beneficiary);\n    event BeneficiaryRemoved(address user, address beneficiary);\n    event CheckIn(address account, uint timestamp);\n\n    error InvalidAmount();\n    error InsufficientBalance();\n    error NotBeneficiary();\n    error IntervalNotExceeded();\n    error InvalidBeneficiary();\n    error TransferFailed();\n\n    /* ========== INTERNAL CHECKIN ========== */\n\n    function _checkIn(User storage u, address account, uint32 ts) internal {\n        u.lastCheckIn = ts;\n        emit CheckIn(account, ts);\n    }\n\n    /* ========== CORE LOGIC ========== */\n\n    function withdraw(address account, uint amount) external {\n        if (amount == 0) revert InvalidAmount();\n\n        User storage u = users[account];\n        uint96 bal = u.balance;\n\n        if (bal < amount) revert InsufficientBalance();\n\n        if (msg.sender == account) {\n            unchecked {\n                u.balance = bal - uint96(amount);\n            }\n\n            uint32 ts = uint32(block.timestamp);\n            _checkIn(u, account, ts);\n\n            (bool success, ) = msg.sender.call{value: amount}(\"\");\n            if (!success) revert TransferFailed();\n        } else {\n            if (!isBeneficiary[account][msg.sender])\n                revert NotBeneficiary();\n\n            if (block.timestamp - u.lastCheckIn <= u.interval)\n                revert IntervalNotExceeded();\n\n            unchecked {\n                u.balance = bal - uint96(amount);\n            }\n\n            (bool success, ) = msg.sender.call{value: amount}(\"\");\n            if (!success) revert TransferFailed();\n\n            emit Withdrawal(msg.sender, amount);\n        }\n    }\n\n    /* ========== PAYABLE ========== */\n\n    receive() external payable {\n        User storage u = users[msg.sender];\n        unchecked {\n            u.balance += uint96(msg.value);\n        }\n\n        uint32 ts = uint32(block.timestamp);\n        _checkIn(u, msg.sender, ts);\n\n        emit Deposit(msg.sender, msg.value);\n    }\n\n    fallback() external payable {\n        User storage u = users[msg.sender];\n        unchecked {\n            u.balance += uint96(msg.value);\n        }\n\n        uint32 ts = uint32(block.timestamp);\n        _checkIn(u, msg.sender, ts);\n\n        emit Deposit(msg.sender, msg.value);\n    }\n\n    function deposit() external payable {\n        if (msg.value == 0) revert InvalidAmount();\n\n        User storage u = users[msg.sender];\n        unchecked {\n            u.balance += uint96(msg.value);\n        }\n\n        uint32 ts = uint32(block.timestamp);\n        _checkIn(u, msg.sender, ts);\n\n        emit Deposit(msg.sender, msg.value);\n    }\n\n    function checkIn() external {\n        User storage u = users[msg.sender];\n        uint32 ts = uint32(block.timestamp);\n        _checkIn(u, msg.sender, ts);\n    }\n\n    function setCheckInInterval(uint interval) external {\n        if (interval == 0) revert InvalidAmount();\n\n        User storage u = users[msg.sender];\n        u.interval = uint32(interval);\n\n        uint32 ts = uint32(block.timestamp);\n        _checkIn(u, msg.sender, ts);\n    }\n\n    function addBeneficiary(address beneficiary) external {\n        if (beneficiary == address(0) || beneficiary == msg.sender)\n            revert InvalidBeneficiary();\n\n        if (isBeneficiary[msg.sender][beneficiary])\n            revert InvalidBeneficiary();\n\n        isBeneficiary[msg.sender][beneficiary] = true;\n\n        emit BeneficiaryAdded(msg.sender, beneficiary);\n\n        User storage u = users[msg.sender];\n        uint32 ts = uint32(block.timestamp);\n        _checkIn(u, msg.sender, ts);\n    }\n\n    function removeBeneficiary(address beneficiary) external {\n        if (!isBeneficiary[msg.sender][beneficiary])\n            revert NotBeneficiary();\n\n        delete isBeneficiary[msg.sender][beneficiary];\n\n        emit BeneficiaryRemoved(msg.sender, beneficiary);\n\n        User storage u = users[msg.sender];\n        uint32 ts = uint32(block.timestamp);\n        _checkIn(u, msg.sender, ts);\n    }\n\n    /* ========== VIEW FUNCTIONS ========== */\n\n    function balanceOf(address account) external view returns (uint) {\n        return users[account].balance;\n    }\n\n    function lastCheckIn(address account) external view returns (uint) {\n        return users[account].lastCheckIn;\n    }\n\n    function checkInInterval(address account)\n        external\n        view\n        returns (uint)\n    {\n        return users[account].interval;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 200
+    },
+    "evmVersion": "paris",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}

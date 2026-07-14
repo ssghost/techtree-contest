@@ -21,12 +21,6 @@ describe("DeadMansSwitch", function () {
     deadMansSwitch = (await deadMansSwitchFactory.deploy()) as DeadMansSwitch;
   });
 
-  describe("Deployment", function () {
-    it("Should set the correct greeting", async function () {
-      expect(await deadMansSwitch.greeting()).to.equal("Building Unstoppable Apps!!!");
-    });
-  });
-
   describe("Deposits", function () {
     it("Should accept deposits via deposit() function", async function () {
       await expect(deadMansSwitch.connect(user).deposit({ value: depositAmount }))
