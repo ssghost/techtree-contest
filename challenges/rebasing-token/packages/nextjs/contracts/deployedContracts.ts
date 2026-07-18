@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   84532: {
     RebasingERC20: {
-      address: "0xaba1b62fe560e3c58d42f916aa6a6059c75286cb",
+      address: "0x77b1b3ace2f73911e2f2622c57e4de7ea8ab7372",
       abi: [
         {
           type: "constructor",
@@ -306,9 +306,39 @@ const deployedContracts = {
           ],
           anonymous: false,
         },
+        {
+          type: "error",
+          name: "InsufficientAllowance",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InsufficientBalance",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InvalidInitialSupply",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NotOwner",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "RebaseUnderflow",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "ZeroAddress",
+          inputs: [],
+        },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 44273252,
+      deployedOnBlock: 44299319,
     },
   },
 } as const;

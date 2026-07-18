@@ -5,14 +5,22 @@ contract RebasingERC20 {
     string public constant name = "Rebasing Token";
     string public constant symbol = "RBT";
     uint8 public constant decimals = 18;
+
+    error NotOwner();
+    error ZeroAddress();
+    error InsufficientBalance();
+    error InsufficientAllowance();
+    error InvalidInitialSupply();
+    error RebaseUnderflow();
+
     address public owner;
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
+        if (msg.sender != owner) revert NotOwner();
         _;
     }
 
-    uint256 private _totalSupply; // fragments
+    uint256 private _totalSupply;
     uint256 private immutable _totalGons;
     uint256 private _gonsPerFragment;
 
@@ -25,15 +33,14 @@ contract RebasingERC20 {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     constructor(uint256 initialSupply) {
-        require(initialSupply > 0, "Initial supply must be > 0");
+        if (initialSupply == 0) revert InvalidInitialSupply();
 
         owner = msg.sender;
-        emit OwnershipTransferred(address(0), owner);
+        emit OwnershipTransferred(address(0), msg.sender);
 
         _totalSupply = initialSupply;
-
         _totalGons = initialSupply * 1e18;
-        _gonsPerFragment = _totalGons / _totalSupply;
+        _gonsPerFragment = 1e18; // since _totalGons / _totalSupply = 1e18 initially
 
         _gonBalances[msg.sender] = _totalGons;
 
@@ -69,9 +76,11 @@ contract RebasingERC20 {
 
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         uint256 currentAllowance = _allowances[from][msg.sender];
-        require(currentAllowance >= amount, "ERC20: insufficient allowance");
+        if (currentAllowance < amount) revert InsufficientAllowance();
 
-        _allowances[from][msg.sender] = currentAllowance - amount;
+        unchecked {
+            _allowances[from][msg.sender] = currentAllowance - amount;
+        }
         emit Approval(from, msg.sender, _allowances[from][msg.sender]);
 
         _transfer(from, to, amount);
@@ -79,14 +88,16 @@ contract RebasingERC20 {
     }
 
     function _transfer(address from, address to, uint256 amount) internal {
-        require(from != address(0), "ERC20: transfer from zero");
-        require(to != address(0), "ERC20: transfer to zero");
+        if (from == address(0) || to == address(0)) revert ZeroAddress();
 
         uint256 gonAmount = amount * _gonsPerFragment;
-        require(_gonBalances[from] >= gonAmount, "ERC20: transfer exceeds balance");
+        uint256 fromBalance = _gonBalances[from];
+        if (fromBalance < gonAmount) revert InsufficientBalance();
 
-        _gonBalances[from] -= gonAmount;
-        _gonBalances[to] += gonAmount;
+        unchecked {
+            _gonBalances[from] = fromBalance - gonAmount;
+            _gonBalances[to] += gonAmount;
+        }
 
         emit Transfer(from, to, amount);
     }
@@ -94,22 +105,29 @@ contract RebasingERC20 {
     // ================= Rebase =================
 
     function rebase(int256 supplyDelta) external onlyOwner returns (uint256) {
+        uint256 supply = _totalSupply;
+
         if (supplyDelta == 0) {
-            emit Rebase(_totalSupply);
-            return _totalSupply;
+            emit Rebase(supply);
+            return supply;
         }
 
         if (supplyDelta < 0) {
             uint256 decrease = uint256(-supplyDelta);
-            require(decrease < _totalSupply, "Rebase underflow");
-            _totalSupply -= decrease;
+            if (decrease >= supply) revert RebaseUnderflow();
+            unchecked {
+                supply -= decrease;
+            }
         } else {
-            _totalSupply += uint256(supplyDelta);
+            unchecked {
+                supply += uint256(supplyDelta);
+            }
         }
 
-        _gonsPerFragment = _totalGons / _totalSupply;
+        _totalSupply = supply;
+        _gonsPerFragment = _totalGons / supply;
 
-        emit Rebase(_totalSupply);
-        return _totalSupply;
+        emit Rebase(supply);
+        return supply;
     }
 }
