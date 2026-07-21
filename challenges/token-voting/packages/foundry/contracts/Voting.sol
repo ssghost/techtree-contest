@@ -6,73 +6,79 @@ interface IERC20 {
 }
 
 contract Voting {
-    IERC20 public token;
-    address public tokenAddress;
-    uint256 public votingDeadline;
+    error NoVotingPower();
+    error AlreadyVoted();
+    error VotingEnded();
+    error VotingActive();
+    error NotToken();
+
+    IERC20 public immutable token;
+    address public immutable tokenAddress;
+    uint64 public immutable votingDeadline;
 
     uint256 public votesFor;
     uint256 public votesAgainst;
 
-    mapping(address => bool) public hasVoted;
-    mapping(address => bool) public voteChoice; // true = For, false = Against
-    mapping(address => uint256) public voteWeight;
+    struct Voter {
+        uint128 weight;
+        bool votedFor;
+    }
+
+    mapping(address => Voter) public voters;
 
     event VoteCasted(address voter, bool vote, uint256 weight);
     event VotesRemoved(address voter, uint256 weight);
 
     constructor(address _tokenAddress, uint256 _votingPeriod) {
-        require(_tokenAddress != address(0), "Invalid token address");
-        require(_votingPeriod > 0, "Invalid voting period");
-
         token = IERC20(_tokenAddress);
         tokenAddress = _tokenAddress;
-        votingDeadline = block.timestamp + _votingPeriod;
+        votingDeadline = uint64(block.timestamp + _votingPeriod);
     }
 
     function vote(bool _vote) external {
-        require(block.timestamp <= votingDeadline, "Voting period ended");
-        require(!hasVoted[msg.sender], "Already voted");
+        if (block.timestamp > votingDeadline) revert VotingEnded();
+
+        Voter storage voter = voters[msg.sender];
+        if (voter.weight != 0) revert AlreadyVoted();
 
         uint256 balance = token.balanceOf(msg.sender);
-        require(balance > 0, "No voting power");
+        if (balance == 0) revert NoVotingPower();
 
-        hasVoted[msg.sender] = true;
-        voteChoice[msg.sender] = _vote;
-        voteWeight[msg.sender] = balance;
+        uint128 weight = uint128(balance);
+
+        voter.weight = weight;
+        voter.votedFor = _vote;
 
         if (_vote) {
-            votesFor += balance;
+            votesFor += weight;
         } else {
-            votesAgainst += balance;
+            votesAgainst += weight;
         }
 
-        emit VoteCasted(msg.sender, _vote, balance);
+        emit VoteCasted(msg.sender, _vote, weight);
     }
 
     function removeVotes(address from) external {
-        require(msg.sender == tokenAddress, "Only token contract");
+        if (msg.sender != tokenAddress) revert NotToken();
 
-        if (!hasVoted[from]) {
-            return;
-        }
+        Voter storage voter = voters[from];
+        uint128 weight = voter.weight;
 
-        uint256 weight = voteWeight[from];
-        bool choice = voteChoice[from];
+        if (weight == 0) return;
 
-        if (choice) {
+        if (voter.votedFor) {
             votesFor -= weight;
         } else {
             votesAgainst -= weight;
         }
 
-        hasVoted[from] = false;
-        voteWeight[from] = 0;
+        delete voters[from];
 
         emit VotesRemoved(from, weight);
     }
 
     function getResult() external view returns (bool) {
-        require(block.timestamp > votingDeadline, "Voting still active");
+        if (block.timestamp <= votingDeadline) revert VotingActive();
         return votesFor > votesAgainst;
     }
 }
