@@ -144,6 +144,9 @@ vite.config.ts.timestamp-*
 .DS_Store
 
 **/lib/**
+**/cache/**
+**/broadcast/**
+**/deployments/**
 .vscode
 .cursor
 .github
