@@ -3,7 +3,7 @@ pragma solidity ^0.8.19;
 
 import "../lib/forge-std/src/Test.sol";
 import "../contracts/WrappedETH.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "../script/IERC20.s.sol";
 
 contract WrappedETHTest is Test {
     WrappedETH public wrappedETH;
