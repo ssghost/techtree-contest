@@ -2,13 +2,18 @@
 pragma solidity ^0.8.19;
 
 contract EthStreaming {
+    error NotOwner();
+    error InvalidRecipient();
+    error NoStream();
+    error AmountExceedsUnlocked();
+    error InsufficientBalance();
+
     uint256 public immutable unlockTime;
-    address public owner;
+    address public immutable owner;
 
     struct Stream {
-        uint256 cap;
-        uint256 lastWithdrawalTime;
-        uint256 withdrawnSinceLast; // amount withdrawn since last full unlock cycle
+        uint128 cap;
+        uint128 lastWithdrawalTime;
     }
 
     mapping(address => Stream) public streams;
@@ -17,12 +22,12 @@ contract EthStreaming {
     event Withdraw(address recipient, uint256 amount);
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
+        if (msg.sender != owner) revert NotOwner();
         _;
     }
 
     constructor(uint256 _unlockTime) {
-        require(_unlockTime > 0, "Invalid unlock time");
+        if (_unlockTime == 0) revert();
         unlockTime = _unlockTime;
         owner = msg.sender;
     }
@@ -30,53 +35,38 @@ contract EthStreaming {
     receive() external payable {}
 
     function addStream(address recipient, uint256 cap) external onlyOwner {
-        require(recipient != address(0), "Invalid recipient");
+        if (recipient == address(0)) revert InvalidRecipient();
 
-        Stream storage stream = streams[recipient];
-        stream.cap = cap;
-
-        if (stream.lastWithdrawalTime == 0) {
-            stream.lastWithdrawalTime = block.timestamp;
-        }
+        streams[recipient] = Stream({
+            cap: uint128(cap),
+            lastWithdrawalTime: uint128(block.timestamp - unlockTime)
+        });
 
         emit AddStream(recipient, cap);
     }
 
     function withdraw(uint256 amount) external {
         Stream storage stream = streams[msg.sender];
-        require(stream.cap > 0, "No stream");
+        uint256 cap = stream.cap;
+        if (cap == 0) revert NoStream();
 
-        uint256 available = _unlockedAmount(msg.sender);
-        require(amount <= available, "Amount exceeds unlocked");
-        require(address(this).balance >= amount, "Insufficient contract balance");
+        uint256 elapsed = block.timestamp - stream.lastWithdrawalTime;
+        uint256 unlocked = (elapsed * cap) / unlockTime;
 
-        stream.withdrawnSinceLast += amount;
+        if (unlocked > cap) {
+            unlocked = cap;
+        }
 
-        // If fully drained, reset timer
-        if (stream.withdrawnSinceLast >= stream.cap) {
-            stream.withdrawnSinceLast = 0;
-            stream.lastWithdrawalTime = block.timestamp;
+        if (amount > unlocked) revert AmountExceedsUnlocked();
+        if (address(this).balance < amount) revert InsufficientBalance();
+
+        unchecked {
+            uint256 timeAdvance = (amount * unlockTime) / cap;
+            stream.lastWithdrawalTime += uint128(timeAdvance);
         }
 
         payable(msg.sender).transfer(amount);
 
         emit Withdraw(msg.sender, amount);
-    }
-
-    function _unlockedAmount(address recipient) internal view returns (uint256) {
-        Stream memory stream = streams[recipient];
-
-        uint256 elapsed = block.timestamp - stream.lastWithdrawalTime;
-        uint256 unlocked = (elapsed * stream.cap) / unlockTime;
-
-        if (unlocked > stream.cap) {
-            unlocked = stream.cap;
-        }
-
-        if (unlocked <= stream.withdrawnSinceLast) {
-            return 0;
-        }
-
-        return unlocked - stream.withdrawnSinceLast;
     }
 }
